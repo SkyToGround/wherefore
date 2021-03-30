@@ -12,8 +12,13 @@ class DataSource:
         self._last_message: Optional[Message] = None
         self._first_offset: Optional[int] = None
         self._first_timestamp: Optional[datetime] = None
+        self._repeated_timestamps: int = 0
+        self._unordered_timestamps: int = 0
 
     def process_message(self, msg: Message):
+        old_timestamp = None
+        if self.last_timestamp is not None:
+            old_timestamp = self.last_timestamp
         self._processed_messages += 1
         self._last_message = msg
         if self._first_offset is None:
@@ -22,6 +27,11 @@ class DataSource:
                 self._first_timestamp = msg.kafka_timestamp
             else:
                 self._first_timestamp = msg.timestamp
+        if old_timestamp is not None:
+            if old_timestamp == self.last_timestamp:
+                self._repeated_timestamps += 1
+            elif old_timestamp > self.last_timestamp:
+                self._unordered_timestamps += 1
 
     def __repr__(self):
         return "DataSource: " + self.__str__()
@@ -48,7 +58,17 @@ class DataSource:
         return self._first_timestamp
 
     @property
+    def repeated_timestamps(self) -> int:
+        return self._repeated_timestamps
+
+    @property
+    def unordered_timestamps(self) -> int:
+        return self._unordered_timestamps
+
+    @property
     def last_timestamp(self) -> datetime:
+        if self._last_message is None:
+            return None
         if self._last_message.timestamp is None:
             return self._last_message.kafka_timestamp
         return self._last_message.timestamp
